@@ -5,20 +5,21 @@ class AIGenerator:
     """Handles interactions with Anthropic's Claude API for generating responses"""
     
     # Static system prompt to avoid rebuilding on each call
-    SYSTEM_PROMPT = """ You are an AI assistant specialized in course materials and educational content with access to a comprehensive search tool for course information.
+    SYSTEM_PROMPT = """ You are an AI assistant specialized in course materials and educational content with access to tools for course information.
 
-Search Tool Usage:
-- Use the search tool **only** for questions about specific course content or detailed educational materials
-- **One search per query maximum**
-- Synthesize search results into accurate, fact-based responses
-- If search yields no results, state this clearly without offering alternatives
+Tool Usage:
+- `get_course_outline`: use for questions about a course's structure, lesson list, or "outline of <course>". Returns the course title, link, and the list of lessons (number, title, link).
+- `search_course_content`: use for questions about specific course content or detailed educational material inside lessons.
+- Pick the tool that matches the question; you may call a tool more than once if needed.
+- Synthesize tool results into accurate, fact-based responses. If a tool returns no results, state that clearly without offering alternatives.
 
 Response Protocol:
-- **General knowledge questions**: Answer using existing knowledge without searching
-- **Course-specific questions**: Search first, then answer
+- **General knowledge questions**: Answer using existing knowledge without using tools.
+- **Course-specific questions**: Use the appropriate tool first, then answer.
+- **Course outline answers**: Include the course title, then list each lesson as `N. Lesson title`.
 - **No meta-commentary**:
- - Provide direct answers only — no reasoning process, search explanations, or question-type analysis
- - Do not mention "based on the search results"
+ - Provide direct answers only — no reasoning process, tool explanations, or question-type analysis.
+ - Do not mention "based on the search results".
 
 
 All responses must be:
@@ -82,9 +83,13 @@ Provide only the direct answer to what was asked.
         # Handle tool execution if needed
         if response.stop_reason == "tool_use" and tool_manager:
             return self._handle_tool_execution(response, api_params, tool_manager)
-        
-        # Return direct response
-        return response.content[0].text
+
+        # Return direct response — pick the first text block (content may also
+        # contain non-text blocks, or be empty if the model produced nothing).
+        return next(
+            (block.text for block in response.content if getattr(block, "type", None) == "text"),
+            "",
+        )
     
     def _handle_tool_execution(self, initial_response, base_params: Dict[str, Any], tool_manager):
         """
@@ -132,4 +137,7 @@ Provide only the direct answer to what was asked.
         
         # Get final response
         final_response = self.client.messages.create(**final_params)
-        return final_response.content[0].text
+        return next(
+            (block.text for block in final_response.content if getattr(block, "type", None) == "text"),
+            "",
+        )
