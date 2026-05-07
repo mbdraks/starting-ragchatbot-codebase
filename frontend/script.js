@@ -122,10 +122,17 @@ function addMessage(content, type, sources = null, isWelcome = false) {
     let html = `<div class="message-content">${displayContent}</div>`;
     
     if (sources && sources.length > 0) {
+        const sourcesHtml = sources.map(s => {
+            const label = escapeHtml(s.label);
+            const safeLink = s.link && /^https?:\/\//i.test(s.link) ? s.link : null;
+            return safeLink
+                ? `<a href="${escapeHtml(safeLink)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+                : label;
+        }).join(', ');
         html += `
             <details class="sources-collapsible">
                 <summary class="sources-header">Sources</summary>
-                <div class="sources-content">${sources.join(', ')}</div>
+                <div class="sources-content">${sourcesHtml}</div>
             </details>
         `;
     }
